@@ -18,11 +18,17 @@ type Connection struct {
 	weight float64
 }
 
-func NewRandConnection(from, to *Node) *Connection {
+// Initialize a connection weight using the method described here:
+// http://ai-maker.com/artificial-neural-networks-to-the-point/
+// "The parameter initialisation process is based on a uniform distribution
+// between two small numbers that take into account the amount of input and
+// output units of the adjacent layers."
+func NewRandConnection(out, in int, from, to *Node) *Connection {
+	max := 2.44948974 / (math.Sqrt(float64(in) + float64(out)))
 	return &Connection{
 		from:   from,
 		to:     to,
-		weight: rand.Float64() / 5.0,
+		weight: rand.Float64()*max*2 - max, // In [-max, max]
 	}
 }
 
@@ -69,7 +75,7 @@ func (this *ANN) wire() {
 		for _, inputNode := range this.input {
 			// Connect input directly to output
 			for _, outputNode := range this.output {
-				c := NewRandConnection(inputNode, outputNode)
+				c := NewRandConnection(len(this.input), len(this.output), inputNode, outputNode)
 				inputNode.out = append(inputNode.out, c)
 				outputNode.in = append(outputNode.in, c)
 			}
@@ -80,7 +86,7 @@ func (this *ANN) wire() {
 	// Connect input to the first hidden layer
 	for _, inputNode := range this.input {
 		for _, hiddenNode := range this.hidden[0] {
-			c := NewRandConnection(inputNode, hiddenNode)
+			c := NewRandConnection(len(this.input), len(this.hidden[0]), inputNode, hiddenNode)
 			inputNode.out = append(inputNode.out, c)
 			hiddenNode.in = append(hiddenNode.in, c)
 		}
@@ -91,7 +97,7 @@ func (this *ANN) wire() {
 		for i := 0; i < len(this.hidden)-1; i++ {
 			for _, hiddenNode := range this.hidden[i] {
 				for _, nextHiddenNode := range this.hidden[i+1] {
-					c := NewRandConnection(hiddenNode, nextHiddenNode)
+					c := NewRandConnection(len(this.hidden[i]), len(this.hidden[i+1]), hiddenNode, nextHiddenNode)
 					hiddenNode.out = append(hiddenNode.out, c)
 					nextHiddenNode.in = append(nextHiddenNode.in, c)
 				}
@@ -102,7 +108,7 @@ func (this *ANN) wire() {
 	// Create connection from hidden to output
 	for _, hiddenNode := range this.hidden[len(this.hidden)-1] {
 		for _, outputNode := range this.output {
-			c := NewRandConnection(hiddenNode, outputNode)
+			c := NewRandConnection(len(this.hidden[len(this.hidden)-1]), len(this.output), hiddenNode, outputNode)
 			hiddenNode.out = append(hiddenNode.out, c)
 			outputNode.in = append(outputNode.in, c)
 		}
