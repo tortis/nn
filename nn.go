@@ -188,16 +188,16 @@ func (this *ANN) Predict(input []float64) []float64 {
 	return output
 }
 
-func (this *ANN) Train(feat, targ [][]float64) float64 {
-	gradientAscent := func(costfn func([]float64) float64, weights []float64, step float64) {
+func (this *ANN) Train(feat, targ [][]float64) (int, float64) {
+	gradientAscent := func(costfn func([]float64) float64, weights []float64, step float64) int {
 		epsilon := 1e-4
-		feval := costfn(weights)
+		//feval := costfn(weights)
 		grad := make([]float64, len(weights))
 		newweights := make([]float64, len(weights))
-		numItr := 0
+		var numItr int
 
-		for {
-			preEval := feval
+		for numItr = 0; numItr < 100; numItr++ {
+			//preEval := feval
 			// Calculate the grad
 			for i := 0; i < len(weights); i++ {
 				val := weights[i]
@@ -213,20 +213,22 @@ func (this *ANN) Train(feat, targ [][]float64) float64 {
 			for i := 0; i < len(weights); i++ {
 				newweights[i] = weights[i] + step*grad[i]
 			}
-			numItr += 1
 
-			// Eval again
-			feval = costfn(newweights)
-			if feval > preEval {
-				// Update weights
-				for i := 0; i < len(weights); i++ {
-					weights[i] = newweights[i]
-				}
-			} else {
-				log.Printf("Stopping after %d iterations.\n")
-				break
+			for i := 0; i < len(weights); i++ {
+				weights[i] = newweights[i]
 			}
+			// Eval again
+			if math.Abs(costfn(newweights)) < 0.02 {
+				return numItr
+			}
+			//if feval > preEval {
+			//	// Update weights
+			//} else {
+			//	log.Printf("Stopping after %d iterations.\n", numItr)
+			//	return numItr
+			//}
 		}
+		return numItr
 	}
 
 	cost := func(weights []float64) float64 {
@@ -254,11 +256,11 @@ func (this *ANN) Train(feat, targ [][]float64) float64 {
 
 		return -(J + R)
 	}
-
 	weights := this.SaveWeights()
-	gradientAscent(cost, weights, 1)
+	log.Printf("Initial error: %f\n", cost(weights))
+	numItr := gradientAscent(cost, weights, 1)
 	terr := cost(weights)
-	return terr
+	return numItr, terr
 }
 
 func (this *ANN) LoadWeights(weights []float64) {
@@ -327,5 +329,5 @@ func StepActivation(in float64) float64 {
 }
 
 func LogisticActivation(x float64) float64 {
-	return 1.0 / (1.0 + math.Exp(-4*x))
+	return 1.0 / (1.0 + math.Exp(-x))
 }
