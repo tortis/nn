@@ -34,11 +34,12 @@ func NewRandConnection(out, in int, from, to *Node) *Connection {
 }
 
 type Node struct {
-	out      []*Connection
-	in       []*Connection
-	val      float64
-	activate ActivationFunction
-	isBias   bool
+	out         []*Connection
+	in          []*Connection
+	val         float64
+	activate    ActivationFunction
+	errorSignal float64
+	isBias      bool
 }
 
 type Layer []*Node
@@ -188,16 +189,55 @@ func (this *ANN) Predict(input []float64) []float64 {
 	return output
 }
 
+func (this *ANN) Backprop(feat, targ [][]float64) float64 {
+	errfn := func(weights []float64) float64 {
+		// Comput the cost
+		J := 0.0
+		for m := 0; m < len(feat); m++ {
+			prediction := this.Predict(feat[m])
+			sqerr := 0.0
+			for k := 0; k < len(prediction); k++ {
+				sqerr += math.Pow(targ[m][k]-prediction[k], 2)
+			}
+			J += sqerr
+		}
+		J /= 2.0
+
+		// Regularisation
+		R := 0.0
+		for i := 0; i < len(weights); i++ {
+			R += math.Pow(weights[i], 2)
+		}
+		R *= 0.01 / float64(this.NumConnections())
+
+		return J + R
+	}
+	runPattern := func(feat, target []float64) {
+		// Compute the prediction
+		prediction := this.Predict(feat)
+
+		// Compute output node error signals
+		for i := 0; i < len(this.output); i++ {
+			delt := target[i] - prediction[i]
+			signal := delt * prediction[i] * (1 - prediction[i])
+			this.output[i].errorSignal = signal
+		}
+
+		// Reconfigure input weights
+	}
+}
+
 func (this *ANN) Train(feat, targ [][]float64) (int, float64) {
 	gradientAscent := func(costfn func([]float64) float64, weights []float64, step float64) int {
 		epsilon := 1e-4
-		//feval := costfn(weights)
+		feval := costfn(weights)
 		grad := make([]float64, len(weights))
+		momentum := make([]float64, len(weights))
 		newweights := make([]float64, len(weights))
-		var numItr int
+		numItr := 0
 
-		for numItr = 0; numItr < 100; numItr++ {
-			//preEval := feval
+		for {
+			preEval := feval
 			// Calculate the grad
 			for i := 0; i < len(weights); i++ {
 				val := weights[i]
@@ -207,6 +247,8 @@ func (this *ANN) Train(feat, targ [][]float64) (int, float64) {
 				left := costfn(weights)
 				weights[i] = val
 				grad[i] = (right - left) / (2 * epsilon)
+				grad[i] += 0.9 * momentum[i]
+				momentum[i] = momentum[i]*0.5 + grad[i]*0.5
 			}
 
 			// New weights
@@ -214,19 +256,19 @@ func (this *ANN) Train(feat, targ [][]float64) (int, float64) {
 				newweights[i] = weights[i] + step*grad[i]
 			}
 
-			for i := 0; i < len(weights); i++ {
-				weights[i] = newweights[i]
-			}
-			// Eval again
-			if math.Abs(costfn(newweights)) < 0.02 {
+			feval = costfn(newweights)
+			numItr += 1
+
+			if math.Abs(feval) < math.Abs(preEval) {
+				if numItr > 500 && math.Abs(math.Abs(feval)-math.Abs(preEval)) < epsilon {
+					return numItr
+				}
+				for i := 0; i < len(weights); i++ {
+					weights[i] = newweights[i]
+				}
+			} else {
 				return numItr
 			}
-			//if feval > preEval {
-			//	// Update weights
-			//} else {
-			//	log.Printf("Stopping after %d iterations.\n", numItr)
-			//	return numItr
-			//}
 		}
 		return numItr
 	}
@@ -257,7 +299,6 @@ func (this *ANN) Train(feat, targ [][]float64) (int, float64) {
 		return -(J + R)
 	}
 	weights := this.SaveWeights()
-	log.Printf("Initial error: %f\n", cost(weights))
 	numItr := gradientAscent(cost, weights, 1)
 	terr := cost(weights)
 	return numItr, terr
@@ -328,6 +369,10 @@ func StepActivation(in float64) float64 {
 	}
 }
 
+func LinearActivation(x float64) float64 {
+	return 4.0 * x
+}
+
 func LogisticActivation(x float64) float64 {
-	return 1.0 / (1.0 + math.Exp(-x))
+	return 1.0 / (1.0 + math.Exp(-4*x))
 }

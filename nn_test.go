@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	//	"math/rand"
 	"testing"
 )
 
@@ -44,35 +43,42 @@ func TestWeightLoadSave(t *testing.T) {
 	}
 }
 
-func train() (*ANN, float64, [][]float64) {
-	n := NewANN(1, 1, LogisticActivation)
-	n.AddHidden(2, true, LogisticActivation)
-	n.AddHidden(2, true, LogisticActivation)
-	n.Wire()
-
-	feats := make([][]float64, 50)
-	targs := make([][]float64, 50)
-	for i := 0; i < 50; i++ {
-		feats[i] = []float64{float64(i) / 50 * math.Pi}
+func train(n *ANN) (float64, [][]float64) {
+	feats := make([][]float64, 30)
+	targs := make([][]float64, 30)
+	for i := 0; i < 30; i++ {
+		x := float64(i) / 30 * math.Pi
+		//x := rand.Float64() * math.Pi
+		feats[i] = []float64{x}
 		targs[i] = []float64{math.Sin(feats[i][0])}
 	}
 
 	_, terr := n.Train(feats, targs)
-	return n, terr, feats
+	return terr, feats
 }
 
 func TestTrain(t *testing.T) {
+	n := NewANN(1, 1, LogisticActivation)
+	n.AddHidden(3, true, LogisticActivation)
+	n.Wire()
+
+	besterr, bestfeats := train(n)
+
 	numTrys := 1
-	n, err, feats := train()
-	for math.Abs(err) > 0.1 {
-		n, err, feats = train()
+	err, feats := train(n)
+	for i := 0; i < 10000; i++ {
+		if math.Abs(err) < math.Abs(besterr) {
+			besterr, bestfeats = err, feats
+			log.Printf("Error: %f\n", besterr)
+		}
+		err, feats = train(n)
 		numTrys += 1
 	}
 	fmt.Printf("Number of trys: %d\n", numTrys)
-	fmt.Printf("Error: %f\n", err)
+	fmt.Printf("Error: %f\n", besterr)
 	fmt.Println("Trained with:")
-	for i := 0; i < len(feats); i++ {
-		fmt.Printf("%f,%f\n", feats[i][0], math.Sin(feats[i][0]))
+	for i := 0; i < len(bestfeats); i++ {
+		fmt.Printf("%f,%f\n", bestfeats[i][0], math.Sin(bestfeats[i][0]))
 	}
 	fmt.Println("\nRandom test:")
 	for i := 0; i < 50; i++ {
