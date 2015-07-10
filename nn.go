@@ -190,6 +190,7 @@ func (this *ANN) Predict(input []float64) []float64 {
 }
 
 func (this *ANN) Backprop(feat, targ [][]float64) float64 {
+	lr := 0.01
 	errfn := func(weights []float64) float64 {
 		// Comput the cost
 		J := 0.0
@@ -208,23 +209,69 @@ func (this *ANN) Backprop(feat, targ [][]float64) float64 {
 		for i := 0; i < len(weights); i++ {
 			R += math.Pow(weights[i], 2)
 		}
-		R *= 0.01 / float64(this.NumConnections())
+		R *= 0.01 / float64(len(weights))
 
 		return J + R
 	}
-	runPattern := func(feat, target []float64) {
-		// Compute the prediction
-		prediction := this.Predict(feat)
 
-		// Compute output node error signals
+	runPattern := func(exin, exout []float64) {
+		// Compute the prediction
+		prediction := this.Predict(exin)
+
+		// Following the steps from: https://www4.rgu.ac.uk/files/chapter3%20-%20bp.pdf
+		// 1. Calculate errors of output nodes
 		for i := 0; i < len(this.output); i++ {
-			delt := target[i] - prediction[i]
+			delt := exout[i] - prediction[i]
 			signal := delt * prediction[i] * (1 - prediction[i])
 			this.output[i].errorSignal = signal
 		}
 
-		// Reconfigure input weights
+		// 2. Change output layer weights
+		for i := 0; i < len(this.output); i++ {
+			for j := 0; j < len(this.output[i].in); j++ {
+				con := this.output[i].in[j]
+				con.weight += lr * this.output[i].errorSignal * con.from.val
+			}
+		}
+
+		for i := 0; i < len(this.hidden); i++ {
+			layer := this.hidden[i]
+			// 3. Calculate (back-propagate) hidden layer errors
+			for j := 0; j < len(layer); j++ {
+				node := layer[j]
+				delt := 0.0
+				for k := 0; k < len(node.out); k++ {
+					delt += node.out[k].to.errorSignal * node.out[k].weight
+				}
+				node.errorSignal = node.val * (1.0 - node.val) * delt
+			}
+
+			// 4. Change hidden layer weights
+			for j := 0; j < len(layer); j++ {
+				node := layer[j]
+				for k := 0; k < len(node.in); k++ {
+					con := node.in[k]
+					con.weight += lr * node.errorSignal * con.from.val
+				}
+			}
+		}
 	}
+
+	log.Printf("Initial error: %f\n", errfn(this.SaveWeights()))
+
+	for numItr := 0; numItr < 200000; numItr++ {
+		for i := 0; i < len(feat); i++ {
+			runPattern(feat[i], targ[i])
+		}
+		numItr += 1
+		if errfn(this.SaveWeights()) < 0.06 {
+			log.Printf("Meet training goal after %d iterations.\n", numItr)
+			return errfn(this.SaveWeights())
+		}
+		//log.Printf("error: %f\n", errfn(this.SaveWeights()))
+	}
+	log.Printf("Gaveup after %d iterations.\n", 20000)
+	return errfn(this.SaveWeights())
 }
 
 func (this *ANN) Train(feat, targ [][]float64) (int, float64) {
@@ -374,5 +421,5 @@ func LinearActivation(x float64) float64 {
 }
 
 func LogisticActivation(x float64) float64 {
-	return 1.0 / (1.0 + math.Exp(-4*x))
+	return 1.0 / (1.0 + math.Exp(-x))
 }

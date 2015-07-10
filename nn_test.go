@@ -57,7 +57,7 @@ func train(n *ANN) (float64, [][]float64) {
 	return terr, feats
 }
 
-func TestTrain(t *testing.T) {
+func OffTestTrain(t *testing.T) {
 	n := NewANN(1, 1, LogisticActivation)
 	n.AddHidden(3, true, LogisticActivation)
 	n.Wire()
@@ -81,6 +81,34 @@ func TestTrain(t *testing.T) {
 		fmt.Printf("%f,%f\n", bestfeats[i][0], math.Sin(bestfeats[i][0]))
 	}
 	fmt.Println("\nRandom test:")
+	for i := 0; i < 50; i++ {
+		x := float64(i) / 50 * math.Pi
+		r := n.Predict([]float64{x})
+		fmt.Printf("%f,%f\n", x, r[0])
+	}
+}
+
+func TestBP(t *testing.T) {
+	// Create some training data for the sine function on [0,pi]
+	feats := make([][]float64, 30)
+	targs := make([][]float64, 30)
+	for i := 0; i < 30; i++ {
+		x := float64(i) / 30 * math.Pi
+		//x := rand.Float64() * math.Pi
+		feats[i] = []float64{x}
+		targs[i] = []float64{math.Sin(feats[i][0])}
+	}
+
+	// Create a nn
+	n := NewANN(1, 1, LogisticActivation)
+	n.AddHidden(20, true, LogisticActivation)
+	n.Wire()
+
+	// Train the network with the data
+	err := n.Backprop(feats, targs)
+	log.Printf("Error after training: %f\n", err)
+
+	log.Println("Validation:")
 	for i := 0; i < 50; i++ {
 		x := float64(i) / 50 * math.Pi
 		r := n.Predict([]float64{x})
