@@ -14,9 +14,10 @@ func init() {
 type ActivationFunction func(float64) float64
 
 type Connection struct {
-	from   *Node
-	to     *Node
-	weight float64
+	from     *Node
+	to       *Node
+	weight   float64
+	momentum float64
 }
 
 // Initialize a connection weight using the method described here:
@@ -189,8 +190,7 @@ func (this *ANN) Predict(input []float64) []float64 {
 	return output
 }
 
-func (this *ANN) Backprop(feat, targ [][]float64) float64 {
-	lr := 0.01
+func (this *ANN) Backprop(feat, targ [][]float64, maxItr int, minErr, lr, mf float64) float64 {
 	errfn := func(weights []float64) float64 {
 		// Comput the cost
 		J := 0.0
@@ -230,7 +230,9 @@ func (this *ANN) Backprop(feat, targ [][]float64) float64 {
 		for i := 0; i < len(this.output); i++ {
 			for j := 0; j < len(this.output[i].in); j++ {
 				con := this.output[i].in[j]
-				con.weight += lr * this.output[i].errorSignal * con.from.val
+				wd := lr*this.output[i].errorSignal*con.from.val + mf*con.momentum
+				con.weight += wd
+				con.momentum = wd
 			}
 		}
 
@@ -251,7 +253,9 @@ func (this *ANN) Backprop(feat, targ [][]float64) float64 {
 				node := layer[j]
 				for k := 0; k < len(node.in); k++ {
 					con := node.in[k]
-					con.weight += lr * node.errorSignal * con.from.val
+					wd := lr*node.errorSignal*con.from.val + mf*con.momentum
+					con.weight += wd
+					con.momentum = wd
 				}
 			}
 		}
@@ -259,12 +263,12 @@ func (this *ANN) Backprop(feat, targ [][]float64) float64 {
 
 	log.Printf("Initial error: %f\n", errfn(this.SaveWeights()))
 
-	for numItr := 0; numItr < 200000; numItr++ {
+	for numItr := 0; numItr < maxItr; numItr++ {
 		for i := 0; i < len(feat); i++ {
 			runPattern(feat[i], targ[i])
 		}
 		numItr += 1
-		if errfn(this.SaveWeights()) < 0.06 {
+		if errfn(this.SaveWeights()) < minErr {
 			log.Printf("Meet training goal after %d iterations.\n", numItr)
 			return errfn(this.SaveWeights())
 		}
