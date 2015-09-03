@@ -17,3 +17,7 @@ func Linear(x float64) float64 {
 func Logistic(x float64) float64 {
 	return 1.0 / (1.0 + math.Exp(-x))
 }
+
+func InvLogistic(y float64) float64 {
+	return -math.Log(1/y + 1)
+}

@@ -143,6 +143,21 @@ func (this *ANN) Wire() {
 	}
 }
 
+func (this *ANN) Reset() {
+	for _, inNode := range this.input {
+		inNode.val = 0
+	}
+	for _, outNode := range this.output {
+		outNode.val = 0
+	}
+
+	for _, hLayer := range this.hidden {
+		for _, hNode := range hLayer {
+			hNode.val = 0
+		}
+	}
+}
+
 func (this *ANN) Predict(input []float64) []float64 {
 	if len(input) > len(this.input) {
 		log.Fatal("The input vector is too long.")
@@ -190,7 +205,37 @@ func (this *ANN) Predict(input []float64) []float64 {
 	return output
 }
 
-func (this *ANN) Dream(output []float64) []float64 {
+func (this *ANN) Dream(output []float64, invFn ActivationFunction) []float64 {
+	if len(this.hidden) != 1 {
+		log.Fatal("Dream only works with 3 layer networks.")
+	}
+	if len(output) != len(this.output) {
+		log.Fatal("The output length given does not match the number of output nodes.")
+	}
+
+	this.Reset()
+
+	// First set the output nodes values, passing it through the inverse activation function
+	for i, outval := range output {
+		this.output[i].val = invFn(outval)
+	}
+
+	// Now compute the post activation values of the hidden layers
+	for _, outNode := range this.output {
+		// First compute the sum of all input weights
+		totalWeight := 0.0
+		for _, inConn := range outNode.in {
+			totalWeight += inConn.weight
+		}
+
+		// Now add the contributing portion to each hidden node
+		for _, inConn := range outNode.in {
+			inConn.from.val += inConn.weight / totalWeight * outNode.val
+		}
+	}
+
+	// Compute pre-activation for hidden layers
+
 	return make([]float64, 0)
 }
 
